@@ -1,0 +1,18 @@
+# System Files
+.DS_Store
+Thumbs.db
+
+# n8n temporary directories (if any)
+.n8n/
+node_modules/
+
+# Local credentials / environment files (if created later)
+.env
+*.env
+*.private
+*.key
+
+# n8n exports: NEVER export workflows with "include credentials" enabled.
+# If you ever do, exported files are typically named like these — ignore them as a safety net.
+*credentials*.json
+*with-creds*.json

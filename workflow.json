@@ -1,0 +1,321 @@
+{
+  "name": "Mythreyee Job Search Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger-id",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        380,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.message.from.id }}",
+              "operation": "equal",
+              "value2": "YOUR_TELEGRAM_USER_ID"
+            }
+          ]
+        }
+      },
+      "id": "auth-check-id",
+      "name": "Auth Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        580,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.message.text }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "/jobs",
+              "output": 0
+            },
+            {
+              "value2": "/help",
+              "output": 1
+            }
+          ]
+        },
+        "fallbackOutput": 2
+      },
+      "id": "command-router-id",
+      "name": "Command Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        800,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 30 3 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger-id",
+      "name": "Schedule Trigger (9 AM IST)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_jobs"
+            },
+            {
+              "name": "q",
+              "value": "(\"DevOps\" OR \"Cloud Engineer\" OR \"SRE\" OR \"Platform Engineer\") AND (Chennai OR Bangalore OR Bengaluru OR \"Remote India\")"
+            },
+            {
+              "name": "location",
+              "value": "India"
+            },
+            {
+              "name": "chips",
+              "value": "date_posted:week"
+            },
+            {
+              "name": "api_key",
+              "value": "YOUR_SERPAPI_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "serpapi-node-id",
+      "name": "SerpAPI Job Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1080,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"sonar\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a professional job matching assistant. You receive job listings, filter them based on location and experience, score them, and format the best matches into a premium Telegram message.\"},{\"role\":\"user\",\"content\":\"Here are raw job listings from Google Jobs:\\n\\n{{ JSON.stringify($json.jobs_results) }}\\n\\nFILTER THEM STRICTLY AGAINST THESE RULES:\\n\\n1. LOCATION: Only keep jobs in Chennai, Bangalore (Bengaluru), India, or Remote/Hybrid roles open to India-based candidates. Instantly REJECT jobs in Poland, USA, Europe, etc.\\n2. EXPERIENCE: Accept roles requiring 0 to 4 years of experience. Because the candidate has 2 years of experience, jobs asking for \\\"2-3 years\\\" or \\\"3+ years\\\" are excellent matches. ONLY reject if the job explicitly requires 5+ years, 7+ years, or has \\\"Senior\\\", \\\"Lead\\\", \\\"Staff\\\", \\\"Principal\\\", or \\\"Manager\\\" in the title.\\n3. SKILL OVERLAP: Ensure the job lists AWS, Kubernetes, Terraform, or Jenkins/CI-CD. Reject if it requires a different cloud like Azure/GCP as a primary skill.\\n4. PREFERENCE: Prioritize and highlight jobs at well-known companies, MNCs, or famous tech firms (e.g., Zoho, Freshworks, Virtusa, Accenture, Cognizant, TCS, Capgemini, Wipro, Infosys, etc.).\\n\\nOUTPUT FORMAT FOR TELEGRAM:\\nIf NO jobs pass the filters, reply with a clean, polite message: \\\"No new junior/mid-level AWS DevOps jobs found in Chennai/Remote today. Tips: [add 2 custom search tips].\\\"\\n\\nIf jobs pass, format as a premium, readable markdown message:\\n\\n🚀 **DevOps & Cloud Jobs Shortlist** — {{ new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) }}\\n\\n| Job Title | Company | Location | Apply Link | Why it Fits |\\n| :--- | :--- | :--- | :--- | :--- |\\n[Include only the matches that passed. Limit to top 5-6 best matches max. Provide clean inline links like [Apply](url) for the apply link. Keep the 'Why it Fits' column very short (1 key matching skill).]\\n\\n🏆 **Top Picks for You**\\n• **[Company Name]** - [1-sentence reason highlighting matching EKS/Terraform/Jenkins skills]\\n\\n👀 **Companies to Watch**\\n- [Name of a famous company in the search that didn't have a matching junior role today, but is worth monitoring]\"}],\"search_recency_filter\":\"week\",\"return_citations\":true}",
+        "options": {}
+      },
+      "id": "perplexity-node-id",
+      "name": "Perplexity AI Filter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1300,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "text",
+              "stringValue": "={{ $json.choices[0].message.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-content-id",
+      "name": "Extract Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1520,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item?.json?.message?.chat?.id || 'YOUR_TELEGRAM_USER_ID' }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "telegram-send-id",
+      "name": "Telegram Send Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        1740,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "🤖 **Available Commands**:\n`/jobs` - Search for Chennai & Bangalore DevOps & Cloud jobs\n`/help` - Show this commands list",
+        "additionalFields": {}
+      },
+      "id": "telegram-help-id",
+      "name": "Telegram Send Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "⚠️ **Unauthorized Access**\nYou do not have permission to trigger this bot.",
+        "additionalFields": {}
+      },
+      "id": "telegram-unauth-id",
+      "name": "Send Unauth Msg",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Auth Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth Check": {
+      "main": [
+        [
+          {
+            "node": "Command Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Unauth Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Command Router": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI Job Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger (9 AM IST)": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI Job Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI Job Search": {
+      "main": [
+        [
+          {
+            "node": "Perplexity AI Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity AI Filter": {
+      "main": [
+        [
+          {
+            "node": "Extract Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Content": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
